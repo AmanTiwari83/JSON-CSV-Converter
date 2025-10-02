@@ -1,0 +1,21 @@
+{
+  "name": "exceltojson-ui",
+  "version": "1.0.0",
+  "description": "",
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "exceljs": "^4.4.0",
+    "express": "^5.1.0",
+    "install": "^0.13.0",
+    "multer": "^2.0.2",
+    "npm": "^11.6.1",
+    "xlsx": "^0.18.5"
+  }
+}
