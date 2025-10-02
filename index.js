@@ -5,8 +5,6 @@ const fs = require("fs");
 const path = require("path");
 
 const app = express();
-
-// Configure multer (upload folder)
 const upload = multer({ dest: "uploads/" });
 
 // Serve HTML file
@@ -14,26 +12,24 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "views", "index.html"));
 });
 
-
-// Convert Excel to JSON (streaming)
+// Convert Excel → JSON (streaming)
 app.post("/upload-json", upload.single("excelFile"), async (req, res) => {
   const filePath = req.file.path;
   const outputFile = path.join(__dirname, "output.json");
   const writeStream = fs.createWriteStream(outputFile);
 
   try {
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.readFile(filePath);
+    const workbookReader = new ExcelJS.stream.xlsx.WorkbookReader(filePath);
 
-    const worksheet = workbook.worksheets[0];
-
-    worksheet.eachRow({ includeEmpty: false }, (row) => {
-      const rowObject = {};
-      row.eachCell((cell, colNumber) => {
-        rowObject[`col${colNumber}`] = cell.value;
-      });
-      writeStream.write(JSON.stringify(rowObject) + "\n");
-    });
+    for await (const worksheetReader of workbookReader) {
+      for await (const row of worksheetReader) {
+        const rowObject = {};
+        row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+          rowObject[`col${colNumber}`] = cell.value;
+        });
+        writeStream.write(JSON.stringify(rowObject) + "\n");
+      }
+    }
 
     writeStream.end(() => {
       res.download(outputFile, "converted.json", () => {
@@ -43,32 +39,32 @@ app.post("/upload-json", upload.single("excelFile"), async (req, res) => {
     });
   } catch (err) {
     console.error(err);
-    res.status(500).send("Error processing file");
+    res.status(500).send("Error processing JSON");
   }
 });
 
-// Convert Excel to CSV (streaming, memory efficient)
+// Convert Excel → CSV (streaming)
 app.post("/upload-csv", upload.single("excelFile"), async (req, res) => {
   const filePath = req.file.path;
   const outputFile = path.join(__dirname, "output.csv");
   const writeStream = fs.createWriteStream(outputFile);
 
   try {
-    const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.readFile(filePath);
-    const worksheet = workbook.worksheets[0];
+    const workbookReader = new ExcelJS.stream.xlsx.WorkbookReader(filePath);
 
-    worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
-      const rowValues = row.values.slice(1); // row.values[0] is null
-      const csvLine = rowValues
-        .map((val) =>
-          val === null || val === undefined
-            ? ""
-            : `"${val.toString().replace(/"/g, '""')}"`
-        )
-        .join(",");
-      writeStream.write(csvLine + "\n");
-    });
+    for await (const worksheetReader of workbookReader) {
+      for await (const row of worksheetReader) {
+        const rowValues = [];
+        row.eachCell({ includeEmpty: true }, (cell) => {
+          rowValues.push(
+            cell.value === null || cell.value === undefined
+              ? ""
+              : `"${cell.value.toString().replace(/"/g, '""')}"`
+          );
+        });
+        writeStream.write(rowValues.join(",") + "\n");
+      }
+    }
 
     writeStream.end(() => {
       res.download(outputFile, "converted.csv", () => {
@@ -78,7 +74,7 @@ app.post("/upload-csv", upload.single("excelFile"), async (req, res) => {
     });
   } catch (err) {
     console.error(err);
-    res.status(500).send("Error processing file");
+    res.status(500).send("Error processing CSV");
   }
 });
 
@@ -86,4 +82,3 @@ const port = process.env.PORT || 3879;
 app.listen(port, () => {
   console.log(`🚀 Server running at http://localhost:${port}`);
 });
-
